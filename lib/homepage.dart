@@ -76,22 +76,22 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
- 
+  final FirebaseMessaging _messaging = FirebaseMessaging();
 
   @override
   void initState() {
-    
+    _messaging.getToken().then((token) => print(token));
     date = DateTime.now();
     newsVar(widget.locale.languageCode);
     print(date.weekday);
     print(days[date.weekday - 1].toString());
-    getdata('http://192.168.0.102:1500/').then((response) => {
+    getdata('http://192.168.0.103:1500/').then((response) => {
           weatherResponse = jsonDecode(response),
           weatherInfo(weatherResponse),
           print(jsonDecode(response)['Main_description']
               [days[date.weekday - 1].toString()])
         });
-    getdata('http://192.168.0.102:5000/hin').then((res) => newsShow(res));
+    getdata('http://192.168.0.103:5000/hin').then((res) => newsShow(res));
 
     super.initState();
   }
@@ -278,7 +278,7 @@ class _HomePageState extends State<HomePage> {
                                     isFloodLoading = true;
                                   });
                                   var flood = await getdata(
-                                      'http://192.168.0.102:4000/floodtest?state=' +
+                                      'http://192.168.0.103:4000/floodtest?state=' +
                                           newValue);
                                   floodDecoded = jsonDecode(flood);
                                   setState(() {
@@ -305,7 +305,7 @@ class _HomePageState extends State<HomePage> {
                                         children: <Widget>[
                                           Padding(
                                             padding: const EdgeInsets.only(
-                                                top: 16.0),
+                                                top: 10.0),
                                             child: Text(
                                               getTranslated(
                                                       context, '% change') +
@@ -319,7 +319,7 @@ class _HomePageState extends State<HomePage> {
                                           ),
                                           Padding(
                                             padding: const EdgeInsets.only(
-                                                top: 16.0),
+                                                top: 10.0),
                                             child: Text(getTranslated(context,
                                                     'Expected Rainfall in four months') +
                                                 ' : ' +
@@ -332,7 +332,7 @@ class _HomePageState extends State<HomePage> {
                                           ),
                                           Padding(
                                             padding: const EdgeInsets.only(
-                                                top: 16.0),
+                                                top: 10.0),
                                             child: Text(getTranslated(context,
                                                     'Weekly average rainfall in last 5 years') +
                                                 ' : ' +
@@ -345,7 +345,7 @@ class _HomePageState extends State<HomePage> {
                                           ),
                                           Padding(
                                             padding: const EdgeInsets.only(
-                                                top: 16.0),
+                                                top: 10.0),
                                             child: Text(floodDecoded[
                                                 'final statement from us']),
                                           ),
@@ -489,7 +489,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                           child: FutureBuilder<dynamic>(
-                            future: getdata('http://192.168.0.102:5000/' +
+                            future: getdata('http://192.168.0.103:5000/' +
                                 newsLinkSuffix), // a Future<String> or null
                             builder: (BuildContext context,
                                 AsyncSnapshot<dynamic> snapshot) {
