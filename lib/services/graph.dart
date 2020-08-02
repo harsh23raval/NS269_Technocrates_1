@@ -20,7 +20,9 @@ class _GraphState extends State<Graph> {
         domainFn: (ChartSeries series, _) => series.year,
         measureFn: (ChartSeries series, _) => series.production,
         colorFn: (ChartSeries series, _) => series.barColor,
-        fillPatternFn: (datum, index) => charts.FillPatternType.forwardHatch,
+        fillPatternFn: (ChartSeries series, index) =>
+            charts.FillPatternType.forwardHatch,
+        labelAccessorFn: (ChartSeries series, _) => '${series.production}',
       )
     ];
     print(series[0].data[0].production.toString() + '==========');
@@ -30,6 +32,11 @@ class _GraphState extends State<Graph> {
       child: charts.BarChart(
         series,
         animate: true,
+        barRendererDecorator: new charts.BarLabelDecorator<String>(
+            insideLabelStyleSpec:
+                charts.TextStyleSpec(color: charts.Color.black)),
+        primaryMeasureAxis:
+            new charts.NumericAxisSpec(renderSpec: new charts.NoneRenderSpec()),
         behaviors: [
           charts.ChartTitle('(Years)',
               behaviorPosition: charts.BehaviorPosition.bottom,
