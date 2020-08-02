@@ -9,6 +9,8 @@ import 'package:sih/yeildpredictor.dart';
 import 'localization.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 
 class HomePage extends StatefulWidget {
   final Locale locale;
@@ -29,6 +31,8 @@ class _HomePageState extends State<HomePage> {
     'Saturday',
     'Sunday'
   ];
+  Position _currentPosition;
+
   var news;
   var weatherResponse;
   var currentTemp;
@@ -82,18 +86,37 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     _messaging.getToken().then((token) => print(token));
     date = DateTime.now();
+
     newsVar(widget.locale.languageCode);
     print(date.weekday);
     print(days[date.weekday - 1].toString());
-    getdata('http://192.168.0.103:1500/').then((response) => {
-          weatherResponse = jsonDecode(response),
-          weatherInfo(weatherResponse),
-          print(jsonDecode(response)['Main_description']
-              [days[date.weekday - 1].toString()])
+    _getCurrentLocation().then((_currentPosition) => {
+          getdata('http://192.168.0.104:1500/?latitude=' +
+                  _currentPosition.latitude.toString() +
+                  '&longitude=' +
+                  _currentPosition.longitude.toString())
+              .then((response) => {
+                    weatherResponse = jsonDecode(response),
+                    weatherInfo(weatherResponse),
+                    print(jsonDecode(response)['Main_description']
+                        [days[date.weekday - 1].toString()])
+                  })
         });
-    getdata('http://192.168.0.103:5000/hin').then((res) => newsShow(res));
+    getdata('http://192.168.0.104:5000/hin').then((res) => newsShow(res));
 
     super.initState();
+  }
+
+  Future<Position> _getCurrentLocation() async {
+    final Geolocator geolocator = Geolocator()..forceAndroidLocationManager;
+
+    Position position = await geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.best);
+    setState(() {
+      _currentPosition = position;
+    });
+
+    return _currentPosition;
   }
 
   moreWeatherInfoDialog(weatherResponse) {
@@ -277,9 +300,15 @@ class _HomePageState extends State<HomePage> {
                                   setState(() {
                                     isFloodLoading = true;
                                   });
+
                                   var flood = await getdata(
-                                      'http://192.168.0.103:4000/floodtest?state=' +
-                                          newValue);
+                                      'http://192.168.0.104:4000/floodtest?state=' +
+                                          newValue +
+                                          '&latitude=' +
+                                          _currentPosition.latitude.toString() +
+                                          '&longitude=' +
+                                          _currentPosition.longitude
+                                              .toString());
                                   floodDecoded = jsonDecode(flood);
                                   setState(() {
                                     subDivision = newValue;
@@ -489,7 +518,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                           child: FutureBuilder<dynamic>(
-                            future: getdata('http://192.168.0.103:5000/' +
+                            future: getdata('http://192.168.0.104:5000/' +
                                 newsLinkSuffix), // a Future<String> or null
                             builder: (BuildContext context,
                                 AsyncSnapshot<dynamic> snapshot) {
