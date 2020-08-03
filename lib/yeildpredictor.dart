@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sih/chartseries.dart';
 import 'package:sih/dropdownitems.dart';
 import 'package:sih/graph.dart';
@@ -12,6 +13,9 @@ import 'localization.dart';
 import 'package:charts_flutter/flutter.dart' as charts;
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:uuid/uuid.dart';
+import 'package:uuid/uuid_util.dart';
 
 /*
 
@@ -35,6 +39,8 @@ class _YeildPredictorState extends State<YeildPredictor> {
     'Bihar',
   ];
 
+  String ip = '104';
+
   var data;
   String cropYear;
   String area;
@@ -43,6 +49,9 @@ class _YeildPredictorState extends State<YeildPredictor> {
   String cropName;
   String season;
   String rainfall;
+  String predictedYield;
+  int counter;
+  var testing;
 
   String queryText = 'Predicting...';
   String yeKya1 = 'loading';
@@ -55,19 +64,77 @@ class _YeildPredictorState extends State<YeildPredictor> {
   bool showGraph = false;
   bool showDistricts = false;
   bool graphHasData = false;
+  bool showStats = false;
 
   var graphData;
   ScrollController controller = ScrollController();
 
   Position _currentPosition;
+  static var uuid = Uuid();
+  var v5 = uuid.v5(Uuid.NAMESPACE_URL, 'yashpal');
 
   @override
   Widget build(BuildContext context) {
+    print('sha-1 : ' + v5.toString());
     Future getdata(url) async {
       print(url);
       http.Response response = await http.get(url);
       print('2 : ' + url);
       return response.body;
+    }
+
+    setcounterLocale(int counter) async {
+      SharedPreferences _prefs = await SharedPreferences.getInstance();
+      await _prefs.setString('counter', counter.toString());
+      await _prefs.setString('unique', v5);
+    }
+
+    getcounterLocale() async {
+      SharedPreferences _prefs = await SharedPreferences.getInstance();
+      String sharedCounter = _prefs.getString('counter') ?? '0';
+      counter = int.parse(sharedCounter);
+
+      print(counter.toString() + '===========');
+    }
+
+    addData(v5) async {
+      DocumentSnapshot docref = await Firestore.instance
+          .collection('yield-prediction')
+          .document(v5)
+          .get();
+
+      if (docref.data == null) {
+        Firestore.instance.collection('yield-prediction').document(v5).setData({
+          'predicted': [
+            {
+              'area': area,
+              'statename': stateName,
+              'districtname': districtName,
+              'cropname': cropName,
+              'season': season,
+              'predicted yield': predictedYield
+            },
+          ]
+        });
+      } else {
+        print('upadte hua ??');
+        Firestore.instance
+            .collection('yield-prediction')
+            .document(v5)
+            .updateData({
+          'predicted': FieldValue.arrayUnion([
+            {
+              'area': area,
+              'statename': stateName,
+              'districtname': districtName,
+              'cropname': cropName,
+              'season': season,
+              'predicted yield': predictedYield
+            },
+          ])
+        });
+        print('update khatam');
+      }
     }
 
     Future<Position> _getCurrentLocation() async {
@@ -147,6 +214,8 @@ class _YeildPredictorState extends State<YeildPredictor> {
           },
           barrierDismissible: true);
     }
+
+    getcounterLocale();
 
     return Scaffold(
       resizeToAvoidBottomPadding: false,
@@ -347,7 +416,7 @@ class _YeildPredictorState extends State<YeildPredictor> {
                         show = true;
                       });
                       _currentPosition = await _getCurrentLocation();
-                      url = 'http://192.168.0.104:7000/yeild_predictor_api?' +
+                      url = 'http://192.168.0.$ip:7000/yeild_predictor_api?' +
                           'area=' +
                           area.toString() +
                           '&state_name=' +
@@ -368,7 +437,7 @@ class _YeildPredictorState extends State<YeildPredictor> {
                       data = await getdata(url);
 
                       var graphHas = await getdata(
-                          'http://192.168.0.104:7000/yeildpredictor_graph');
+                          'http://192.168.0.$ip:7000/yeildpredictor_graph');
                       // <========= Assigning values=============>
 
                       //<============== noraml data===========>
@@ -376,6 +445,8 @@ class _YeildPredictorState extends State<YeildPredictor> {
                       var decodedData = jsonDecode(data);
                       var predict = decodedData['prediction'];
                       var graphHasDecoded = jsonDecode(graphHas);
+                      var test = decodedData['test'];
+                      print(test['2010']);
 
                       /*  var graphData = await getdata(
                           'http://192.168.0.132:7000/yeildpredictor_graph'); */
@@ -390,8 +461,13 @@ class _YeildPredictorState extends State<YeildPredictor> {
                           : 'false=========');
 
                       setState(() {
+                        showStats = true;
+                        testing = test;
+
                         queryText =
                             (num.parse(predict.toString()) * 1000).toString();
+                        predictedYield = queryText;
+
                         isLoading = false;
                         showGraph = true;
                         graphHasDecoded['crop_year_for_graph'].length == 0
@@ -401,6 +477,10 @@ class _YeildPredictorState extends State<YeildPredictor> {
                           wrongInputs();
                         }
                       });
+                      counter++;
+                      setcounterLocale(counter);
+
+                      addData(v5);
                     },
                     color: Colors.green[400],
                     child: Text(
@@ -417,16 +497,31 @@ class _YeildPredictorState extends State<YeildPredictor> {
                         : Padding(
                             padding: const EdgeInsets.all(8.0),
                             child: Text(
-                              getTranslated(context, 'yield prediction') +
-                                  ' : ' +
-                                  getNumberTranslated(
-                                      context, queryText.toString()) +
-                                  getTranslated(context, 'kg'),
+                              graphHasData
+                                  ? getTranslated(context, 'yield prediction') +
+                                      ' : ' +
+                                      getNumberTranslated(
+                                          context, queryText.toString()) +
+                                      getTranslated(context, 'kg')
+                                  : 'Sorry the inputs does not have any correlation.',
                               style: TextStyle(
                                   fontWeight: FontWeight.bold, fontSize: 20),
                             ),
                           )
                     : Container(),
+                /*  showStats
+                    ? Expanded(
+                        child: Container(
+                            child: ListView(
+                          children: <Widget>[
+                            Text('2010 : ' + testing['2010']),
+                            Text('2011 : ' + testing['2011']),
+                            Text('2012 : ' + testing['2012']),
+                            Text('2013 : ' + testing['2013']),
+                          ],
+                        )),
+                      )
+                    : Container(), */
                 showGraph
                     ? Divider(
                         color: Colors.greenAccent,
@@ -449,7 +544,7 @@ class _YeildPredictorState extends State<YeildPredictor> {
                           child: graphHasData
                               ? new FutureBuilder<dynamic>(
                                   future: getdata(
-                                      'http://192.168.0.104:7000/yeildpredictor_graph'), // a Future<String> or null
+                                      'http://192.168.0.$ip:7000/yeildpredictor_graph'), // a Future<String> or null
                                   builder: (BuildContext context,
                                       AsyncSnapshot<dynamic> snapshot) {
                                     switch (snapshot.connectionState) {

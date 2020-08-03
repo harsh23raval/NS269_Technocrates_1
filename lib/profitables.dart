@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:sih/dropdownitems.dart';
@@ -25,6 +26,7 @@ class _ProfitablesState extends State<Profitables> {
   List<String> gujarat = ['Surendranagar', 'Ahmedabad'];
   List cropList;
   List cropListProduction;
+  String ip = '104';
 
   var data;
   String cropYear;
@@ -253,7 +255,7 @@ class _ProfitablesState extends State<Profitables> {
                     show = true;
                   });
                   _currentPosition = await _getCurrentLocation();
-                  url = 'http://192.168.0.104:3000/profitable_crop?' +
+                  url = 'http://192.168.0.$ip:3000/profitable_crop?' +
                       'area=' +
                       area.toString() +
                       '&yield=' +
@@ -301,6 +303,17 @@ class _ProfitablesState extends State<Profitables> {
 
                     isLoading = false;
                   });
+
+                  Firestore.instance
+                      .collection('profitablesinputs')
+                      .document()
+                      .setData({
+                    'area': area,
+                    'statename': stateName,
+                    'districtname': districtName,
+                    'yield': expectedyield,
+                    'season': season
+                  });
                 },
                 child: Text(
                   DemoLocalization.of(context)
@@ -336,11 +349,13 @@ class _ProfitablesState extends State<Profitables> {
                                       mainAxisAlignment:
                                           MainAxisAlignment.spaceBetween,
                                       children: <Widget>[
-                                        Text(getTranslated(
-                                                context, 'profitable crop') +
-                                            ' : ' +
-                                            getTranslated(
-                                                context, profitableCrop)),
+                                        Expanded(
+                                          child: Text(getTranslated(
+                                                  context, 'profitable crop') +
+                                              ' : ' +
+                                              getTranslated(
+                                                  context, profitableCrop)),
+                                        ),
                                         Text(getTranslated(
                                                 context, 'production') +
                                             ' : ' +
@@ -356,26 +371,31 @@ class _ProfitablesState extends State<Profitables> {
                                     ),
                                     Text(getTranslated(
                                         context, 'other profitable crops')),
-                                    Container(
-                                      height:
-                                          MediaQuery.of(context).size.height *
-                                              0.13,
-                                      width: MediaQuery.of(context).size.width,
-                                      child: ListView.builder(
-                                        itemBuilder: (context, index) {
-                                          return Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceBetween,
-                                            children: <Widget>[
-                                              Text(getTranslated(
-                                                    context,
-                                                    cropList[index].toString(),
-                                                  ) ??
-                                                  cropList[index].toString()),
-                                            ],
-                                          );
-                                        },
-                                        itemCount: cropList.length,
+                                    Expanded(
+                                      child: Container(
+                                        height:
+                                            MediaQuery.of(context).size.height *
+                                                0.13,
+                                        width:
+                                            MediaQuery.of(context).size.width,
+                                        child: ListView.builder(
+                                          itemBuilder: (context, index) {
+                                            return Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: <Widget>[
+                                                Text(getTranslated(
+                                                      context,
+                                                      cropList[index]
+                                                          .toString(),
+                                                    ) ??
+                                                    cropList[index].toString()),
+                                              ],
+                                            );
+                                          },
+                                          itemCount: cropList.length,
+                                        ),
                                       ),
                                     )
                                   ],
@@ -474,7 +494,7 @@ class _ProfitablesState extends State<Profitables> {
             padding: const EdgeInsets.all(8.0),
             child: RaisedButton(
               onPressed: () async {
-                url = 'http://192.168.0.104:3000/profitable_crop?' +
+                url = 'http://192.168.0.$ip:3000/profitable_crop?' +
                     'area=' +
                     area.toString() +
                     '&state_name=' +
@@ -596,7 +616,7 @@ class _ProfitablesState extends State<Profitables> {
             padding: const EdgeInsets.all(8.0),
             child: RaisedButton(
               onPressed: () async {
-                url = 'http://192.168.0.104:3000/profitable_crop?' +
+                url = 'http://192.168.0.$ip:3000/profitable_crop?' +
                     'area=' +
                     area.toString() +
                     '&state_name=' +
