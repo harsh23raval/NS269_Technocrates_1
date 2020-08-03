@@ -1,4 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sih/dropdownitems.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:sih/language.dart';
@@ -9,7 +11,6 @@ import 'package:sih/yeildpredictor.dart';
 import 'localization.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 
 class HomePage extends StatefulWidget {
@@ -18,6 +19,22 @@ class HomePage extends StatefulWidget {
 
   @override
   _HomePageState createState() => _HomePageState();
+}
+
+Future<dynamic> myBackgroundMessageHandler(Map<String, dynamic> message) {
+  if (message.containsKey('data')) {
+    // Handle data message
+    final dynamic data = message['data'];
+    print(data);
+  }
+
+  if (message.containsKey('notification')) {
+    // Handle notification message
+    final dynamic notification = message['notification'];
+    print(notification);
+  }
+
+  return null;
 }
 
 class _HomePageState extends State<HomePage> {
@@ -32,6 +49,15 @@ class _HomePageState extends State<HomePage> {
     'Sunday'
   ];
   Position _currentPosition;
+  String ip = '104';
+
+  String cropYear;
+  String area;
+  String stateName;
+  String districtName;
+  String cropName;
+  String season;
+  String rainfall;
 
   var news;
   var weatherResponse;
@@ -43,6 +69,9 @@ class _HomePageState extends State<HomePage> {
   String newsLinkSuffix;
   String newsFormat;
   bool showFloodData = false;
+  bool feedbackEnable = true;
+
+  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging();
 
   Future getdata(url) async {
     print(url);
@@ -84,6 +113,34 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void initState() {
+    _firebaseMessaging.configure(
+      onMessage: (Map<String, dynamic> message) async {
+        print("onMessage: $message");
+        weatherInfo(weatherResponse);
+      },
+      onBackgroundMessage: myBackgroundMessageHandler,
+      onLaunch: (Map<String, dynamic> message) async {
+        print("onLaunch: $message");
+        weatherInfo(weatherResponse);
+      },
+      onResume: (Map<String, dynamic> message) async {
+        print("onResume: $message");
+        weatherInfo(weatherResponse);
+      },
+    );
+
+    _firebaseMessaging.requestNotificationPermissions(
+        const IosNotificationSettings(
+            sound: true, badge: true, alert: true, provisional: true));
+    _firebaseMessaging.onIosSettingsRegistered
+        .listen((IosNotificationSettings settings) {
+      print("Settings registered: $settings");
+    });
+    _firebaseMessaging.getToken().then((String token) {
+      assert(token != null);
+      setState(() {});
+    });
+
     _messaging.getToken().then((token) => print(token));
     date = DateTime.now();
 
@@ -91,7 +148,7 @@ class _HomePageState extends State<HomePage> {
     print(date.weekday);
     print(days[date.weekday - 1].toString());
     _getCurrentLocation().then((_currentPosition) => {
-          getdata('http://192.168.0.104:1500/?latitude=' +
+          getdata('http://192.168.0.$ip:1500/?latitude=' +
                   _currentPosition.latitude.toString() +
                   '&longitude=' +
                   _currentPosition.longitude.toString())
@@ -102,9 +159,12 @@ class _HomePageState extends State<HomePage> {
                         [days[date.weekday - 1].toString()])
                   })
         });
-    getdata('http://192.168.0.104:5000/hin').then((res) => newsShow(res));
+    getdata('http://192.168.0.$ip:5000/hin').then((res) => newsShow(res));
 
     super.initState();
+
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => checkDate(DateTime.now()));
   }
 
   Future<Position> _getCurrentLocation() async {
@@ -117,6 +177,181 @@ class _HomePageState extends State<HomePage> {
     });
 
     return _currentPosition;
+  }
+
+  String unique;
+
+  String outputYeild;
+
+  saveonDB() async {
+    DocumentSnapshot docus =
+        await Firestore().collection('yield-prediction').document(unique).get();
+    print(unique);
+    print(docus['7']);
+    var docuss = docus;
+    docuss['7']['cropname'] = 'maize';
+    print(docuss);
+    /* Firestore.instance
+        .collection('yield-prediction')
+        .document(unique)
+        .updateData(docuss); */
+  }
+
+  addData(v5) async {
+    DocumentSnapshot docref = await Firestore.instance
+        .collection('yield-prediction')
+        .document(v5)
+        .get();
+
+    if (docref.data == null) {
+      Firestore.instance.collection('yield-prediction').document(v5).setData({
+        'output': [
+          {
+            'area': area,
+            'statename': stateName,
+            'districtname': districtName,
+            'cropname': cropName,
+            'season': season,
+            'outputyield': outputYeild
+          },
+        ]
+      });
+    } else {
+      print('upadte hua ??');
+      Firestore.instance
+          .collection('yield-prediction')
+          .document(v5)
+          .updateData({
+        'output': FieldValue.arrayUnion([
+          {
+            'area': area,
+            'statename': stateName,
+            'districtname': districtName,
+            'cropname': cropName,
+            'season': season,
+            'outputyield': outputYeild
+          },
+        ])
+      });
+      print('update khatam');
+    }
+  }
+
+  feedbackForm() {
+    showDialog(
+        context: context,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (BuildContext context, setState) {
+              return AlertDialog(
+                contentTextStyle: TextStyle(fontSize: 14, color: Colors.black),
+                backgroundColor: Colors.white,
+                title: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3.0),
+                  child: Text('Feedback Form '),
+                ),
+                content: Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Expanded(
+                      child: ListView(
+                        children: <Widget>[
+                          TextField(
+                            onChanged: (value) {
+                              area = value;
+                            },
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(
+                                    style: BorderStyle.none,
+                                    color: Colors.green),
+                              ),
+                              hintText: 'Area',
+                            ),
+                          ),
+                          TextField(
+                            onChanged: (value) {
+                              stateName = value;
+                            },
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(
+                                    style: BorderStyle.none,
+                                    color: Colors.green),
+                              ),
+                              hintText: 'state name',
+                            ),
+                          ),
+                          TextField(
+                            onChanged: (value) {
+                              districtName = value;
+                            },
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(
+                                    style: BorderStyle.none,
+                                    color: Colors.green),
+                              ),
+                              hintText: 'district name',
+                            ),
+                          ),
+                          TextField(
+                            onChanged: (value) {
+                              season = value;
+                            },
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(
+                                    style: BorderStyle.none,
+                                    color: Colors.green),
+                              ),
+                              hintText: 'season you grew',
+                            ),
+                          ),
+                          TextField(
+                            onChanged: (value) {
+                              outputYeild = value;
+                            },
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(
+                                    style: BorderStyle.none,
+                                    color: Colors.green),
+                              ),
+                              hintText: 'Output you got',
+                            ),
+                          ),
+                        ],
+                      ),
+                    )),
+                actions: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: RaisedButton(
+                      color: Colors.green[400],
+                      onPressed: () {
+                        addData(unique);
+                      },
+                      child: Text(
+                        'submit',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  )
+                ],
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                contentPadding: EdgeInsets.all(8),
+              );
+            },
+          );
+        },
+        barrierDismissible: true);
   }
 
   moreWeatherInfoDialog(weatherResponse) {
@@ -143,8 +378,10 @@ class _HomePageState extends State<HomePage> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: <Widget>[
                           Text(getTranslated(context, 'Today')),
-                          Text(weatherResponse['Main_description']
-                              [days[date.weekday - 1]]),
+                          Text(getTranslated(
+                              context,
+                              weatherResponse['Main_description']
+                                  [days[date.weekday - 1]])),
                           Text(weatherResponse['Main_daily_rainfall_amt'][days[
                                       date.add(Duration(days: 0)).weekday - 1]]
                                   .toString() +
@@ -161,8 +398,10 @@ class _HomePageState extends State<HomePage> {
                         children: <Widget>[
                           Text(getTranslated(context,
                               days[date.add(Duration(days: 1)).weekday - 1])),
-                          Text(weatherResponse['Main_description']
-                              [days[date.add(Duration(days: 1)).weekday - 1]]),
+                          Text(getTranslated(
+                              context,
+                              weatherResponse['Main_description'][days[
+                                  date.add(Duration(days: 1)).weekday - 1]])),
                           Text(weatherResponse['Main_daily_rainfall_amt'][days[
                                       date.add(Duration(days: 1)).weekday - 1]]
                                   .toString() +
@@ -179,8 +418,10 @@ class _HomePageState extends State<HomePage> {
                         children: <Widget>[
                           Text(getTranslated(context,
                               days[date.add(Duration(days: 2)).weekday - 1])),
-                          Text(weatherResponse['Main_description']
-                              [days[date.add(Duration(days: 2)).weekday - 1]]),
+                          Text(getTranslated(
+                              context,
+                              weatherResponse['Main_description'][days[
+                                  date.add(Duration(days: 2)).weekday - 1]])),
                           Text(weatherResponse['Main_daily_rainfall_amt'][days[
                                       date.add(Duration(days: 2)).weekday - 1]]
                                   .toString() +
@@ -201,8 +442,10 @@ class _HomePageState extends State<HomePage> {
                                 days[date.add(Duration(days: 3)).weekday - 1]),
                             style: TextStyle(color: Colors.black),
                           ),
-                          Text(weatherResponse['Main_description']
-                              [days[date.add(Duration(days: 3)).weekday - 1]]),
+                          Text(getTranslated(
+                              context,
+                              weatherResponse['Main_description'][days[
+                                  date.add(Duration(days: 3)).weekday - 1]])),
                           Text(weatherResponse['Main_daily_rainfall_amt'][days[
                                       date.add(Duration(days: 3)).weekday - 1]]
                                   .toString() +
@@ -219,8 +462,10 @@ class _HomePageState extends State<HomePage> {
                         children: <Widget>[
                           Text(getTranslated(context,
                               days[date.add(Duration(days: 4)).weekday - 1])),
-                          Text(weatherResponse['Main_description']
-                              [days[date.add(Duration(days: 4)).weekday - 1]]),
+                          Text(getTranslated(
+                              context,
+                              weatherResponse['Main_description'][days[
+                                  date.add(Duration(days: 4)).weekday - 1]])),
                           Text(weatherResponse['Main_daily_rainfall_amt'][days[
                                       date.add(Duration(days: 4)).weekday - 1]]
                                   .toString() +
@@ -236,8 +481,10 @@ class _HomePageState extends State<HomePage> {
                         children: <Widget>[
                           Text(getTranslated(context,
                               days[date.add(Duration(days: 5)).weekday - 1])),
-                          Text(weatherResponse['Main_description']
-                              [days[date.add(Duration(days: 5)).weekday - 1]]),
+                          Text(getTranslated(
+                              context,
+                              weatherResponse['Main_description'][days[
+                                  date.add(Duration(days: 5)).weekday - 1]])),
                           Text(weatherResponse['Main_daily_rainfall_amt'][days[
                                       date.add(Duration(days: 5)).weekday - 1]]
                                   .toString() +
@@ -253,8 +500,10 @@ class _HomePageState extends State<HomePage> {
                         children: <Widget>[
                           Text(getTranslated(context,
                               days[date.add(Duration(days: 6)).weekday - 1])),
-                          Text(weatherResponse['Main_description']
-                              [days[date.add(Duration(days: 6)).weekday - 1]]),
+                          Text(getTranslated(
+                              context,
+                              weatherResponse['Main_description'][days[
+                                  date.add(Duration(days: 6)).weekday - 1]])),
                           Text(weatherResponse['Main_daily_rainfall_amt'][days[
                                       date.add(Duration(days: 6)).weekday - 1]]
                                   .toString() +
@@ -302,7 +551,7 @@ class _HomePageState extends State<HomePage> {
                                   });
 
                                   var flood = await getdata(
-                                      'http://192.168.0.104:4000/floodtest?state=' +
+                                      'http://192.168.0.$ip:4000/floodtest?state=' +
                                           newValue +
                                           '&latitude=' +
                                           _currentPosition.latitude.toString() +
@@ -350,7 +599,7 @@ class _HomePageState extends State<HomePage> {
                                             padding: const EdgeInsets.only(
                                                 top: 10.0),
                                             child: Text(getTranslated(context,
-                                                    'Expected Rainfall in four months') +
+                                                    'total rainfall expected in this week') +
                                                 ' : ' +
                                                 getNumberTranslated(
                                                     context,
@@ -399,6 +648,48 @@ class _HomePageState extends State<HomePage> {
         barrierDismissible: true);
   }
 
+  showAlertDialog(BuildContext context) {
+    // set up the button
+    Widget okButton = FlatButton(
+      child: Text("OK"),
+      onPressed: () {},
+    );
+
+    // set up the AlertDialog
+    AlertDialog alert = AlertDialog(
+      title: Text("My title"),
+      content: Text("This is my message."),
+      actions: [
+        okButton,
+      ],
+    );
+
+    // show the dialog
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+
+  checkDate(DateTime date) {
+    DateTime futureDate = DateTime(2020, 8, 03);
+    if (date.isAfter(futureDate)) {
+      print('dialog box dikahao');
+      feedbackForm();
+    } else {
+      print('dialog box mat dikahao');
+    }
+  }
+
+  getcounterLocale() async {
+    SharedPreferences _prefs = await SharedPreferences.getInstance();
+    String sharedUnique = _prefs.getString('unique');
+    unique = sharedUnique;
+    print(unique);
+  }
+
   @override
   Widget build(BuildContext context) {
     void _changeLanguage(Language language) async {
@@ -407,6 +698,7 @@ class _HomePageState extends State<HomePage> {
       MyApp.setLocale(context, _temp);
     }
 
+    getcounterLocale();
     print(newsLinkSuffix + '' + '' + newsFormat);
     print(widget.locale.languageCode.toString() + '-----------');
 
@@ -466,7 +758,7 @@ class _HomePageState extends State<HomePage> {
                       : Text(
                           getTranslated(context, days[date.weekday - 1]) +
                               " : " +
-                              currentRain,
+                              getTranslated(context, currentRain),
                           style: TextStyle(color: Colors.white, fontSize: 19),
                         ),
                   currentTemp == null
@@ -518,7 +810,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                           child: FutureBuilder<dynamic>(
-                            future: getdata('http://192.168.0.104:5000/' +
+                            future: getdata('http://192.168.0.$ip:5000/' +
                                 newsLinkSuffix), // a Future<String> or null
                             builder: (BuildContext context,
                                 AsyncSnapshot<dynamic> snapshot) {
