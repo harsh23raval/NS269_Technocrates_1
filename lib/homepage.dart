@@ -237,6 +237,68 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  matched(double predicted, double output) {
+    if (predicted - 100.0 > output && output < predicted + 100.0) {
+      print(predicted - 100);
+      print(output);
+      print(predicted + 100);
+      print('Looks like perfect prediction !!');
+    } else if (predicted - 200.0 > output && output < predicted + 200.0) {
+      print(predicted - 200);
+      print(output);
+      print(predicted + 200);
+      print('pretty close but we will improve !!');
+    } else if (predicted - 300.0 > output && output < predicted + 300.0) {
+      print(predicted - 300);
+      print(output);
+      print(predicted + 300);
+      print('still needs improvements ');
+    } else {
+      print('we will try better next time !!');
+    }
+  }
+
+  results() async {
+    DocumentSnapshot docref = await Firestore.instance
+        .collection('yield-prediction')
+        .document(unique)
+        .get();
+    DocumentSnapshot docrefOutput = await Firestore.instance
+        .collection('yield-prediction')
+        .document(unique)
+        .get();
+
+    for (var item in docref['predicted']) {
+      /* print('match hua??');
+      print(docrefOutput['output']); */
+      /* print(item.toString());
+      docrefOutput['output'][0]['area'] == item['area']
+          ? print('area matched')
+          : print('area not matched');
+
+      docrefOutput['output'][0]['statename'] == item['statname']
+          ? print('statename matched')
+          : print('state not matched');
+
+      docrefOutput['output'][0]['districtname'] == item['districtname']
+          ? print('district matched')
+          : print('district not matched');
+
+      docrefOutput['output'][0]['cropname'] == item['cropname']
+          ? print('crop matched')
+          : print('crop not matched'); */
+
+      if (docrefOutput['output'][0]['area'] == item['area'] &&
+          docrefOutput['output'][0]['districtname'] == item['districtname'] &&
+          docrefOutput['output'][0]['cropname'] == item['cropname']) {
+        showAlertDialog(context, num.parse(item['predicted yield']),
+            num.parse(docrefOutput['output'][0]['outputyield']));
+      } else {
+        print('no matches found');
+      }
+    }
+  }
+
   feedbackForm() {
     showDialog(
         context: context,
@@ -257,7 +319,8 @@ class _HomePageState extends State<HomePage> {
                         children: <Widget>[
                           TextField(
                             onChanged: (value) {
-                              area = value;
+                              area =
+                                  (num.parse(value) * 0.404685642).toString();
                             },
                             decoration: InputDecoration(
                               border: OutlineInputBorder(
@@ -335,6 +398,8 @@ class _HomePageState extends State<HomePage> {
                       color: Colors.green[400],
                       onPressed: () {
                         addData(unique);
+                        Navigator.pop(context);
+                        results();
                       },
                       child: Text(
                         'submit',
@@ -648,7 +713,7 @@ class _HomePageState extends State<HomePage> {
         barrierDismissible: true);
   }
 
-  showAlertDialog(BuildContext context) {
+  showAlertDialog(BuildContext context, predicted, output) {
     // set up the button
     Widget okButton = FlatButton(
       child: Text("OK"),
@@ -657,8 +722,12 @@ class _HomePageState extends State<HomePage> {
 
     // set up the AlertDialog
     AlertDialog alert = AlertDialog(
-      title: Text("My title"),
-      content: Text("This is my message."),
+      title: Text("Results"),
+      content: Text('predicted : ' +
+          predicted.toString() +
+          '&' +
+          'real output : ' +
+          output),
       actions: [
         okButton,
       ],

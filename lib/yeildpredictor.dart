@@ -52,11 +52,18 @@ class _YeildPredictorState extends State<YeildPredictor> {
   String predictedYield;
   int counter;
   var testing;
+  String totalrainfall;
+  String showAccuracy;
+  String cropCare;
+  bool showSuggestions = false;
 
   String queryText = 'Predicting...';
   String yeKya1 = 'loading';
   String yeKya2 = 'loading';
   List<ChartSeries> graphList = [];
+  List previousYears = [];
+  List previousYield = [];
+  List previousRain = [];
 
   bool isLoading = true;
   bool show = false;
@@ -445,9 +452,13 @@ class _YeildPredictorState extends State<YeildPredictor> {
                       var decodedData = jsonDecode(data);
                       var predict = decodedData['prediction'];
                       var graphHasDecoded = jsonDecode(graphHas);
-                      var test = decodedData['test'];
-                      print(test['2010']);
 
+                      var total = decodedData['roundoff'];
+                      var years = decodedData['Years'];
+                      var productions = decodedData['Yield (kg/acre)'];
+                      var rain = decodedData['past_weekly_rainfall'];
+                      String accuracy = decodedData['accuracy'];
+                      String care = decodedData['crop_care'];
                       /*  var graphData = await getdata(
                           'http://192.168.0.132:7000/yeildpredictor_graph'); */
 
@@ -462,8 +473,20 @@ class _YeildPredictorState extends State<YeildPredictor> {
 
                       setState(() {
                         showStats = true;
-                        testing = test;
-
+                        showAccuracy = accuracy;
+                        cropCare = care;
+                        previousRain = rain;
+                        accuracy ==
+                                'There is 50% accuracy to reach the above production. We suggest you to try some other crops. They might give you better production.'
+                            ? showSuggestions = true
+                            : showSuggestions = false;
+                        previousYears = years;
+                        previousYield = productions;
+                        print(previousRain.toString());
+                        print(previousYield.toString());
+                        print(previousYears.toString());
+                        totalrainfall = total.toString();
+                        print('testing :' + testing.toString());
                         queryText =
                             (num.parse(predict.toString()) * 1000).toString();
                         predictedYield = queryText;
@@ -509,19 +532,117 @@ class _YeildPredictorState extends State<YeildPredictor> {
                             ),
                           )
                     : Container(),
-                /*  showStats
-                    ? Expanded(
-                        child: Container(
-                            child: ListView(
+                show
+                    ? isLoading
+                        ? Container()
+                        : Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Container(
+                              padding: EdgeInsets.all(5),
+                              decoration:
+                                  BoxDecoration(border: Border.all(width: 1)),
+                              child: Text(
+                                '**' + showAccuracy,
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          )
+                    : Container(),
+                showSuggestions
+                    ? Container(
+                        decoration: BoxDecoration(border: Border.all(width: 1)),
+                        padding: EdgeInsets.all(5),
+                        child: Text(
+                          'Hey , Looks like you need some suggestions go to our profitable crops page.',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ))
+                    : Container(),
+                show
+                    ? isLoading
+                        ? Container()
+                        : Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Container(
+                              padding: EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                  border: Border.all(
+                                width: 1,
+                              )),
+                              child: Text(
+                                'crop care : ' + cropCare,
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          )
+                    : Container(),
+                showStats
+                    ? Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                            border: Border.all(width: 1, color: Colors.green)),
+                        height: 245,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: <Widget>[
-                            Text('2010 : ' + testing['2010']),
-                            Text('2011 : ' + testing['2011']),
-                            Text('2012 : ' + testing['2012']),
-                            Text('2013 : ' + testing['2013']),
+                            Text('Total 7 days rainfall in your area :' +
+                                totalrainfall),
+                            Divider(
+                              thickness: 1,
+                              color: Colors.black,
+                            ),
+                            Text(
+                                'Rainfall amount that yield best results in past 5 years for rice : '),
+                            Container(
+                              padding: EdgeInsets.all(4),
+                              color: Colors.yellowAccent,
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: <Widget>[
+                                  Text('years'),
+                                  Text('yield'),
+                                  Text('rain(mm)'),
+                                ],
+                              ),
+                            ),
+                            previousYears == null
+                                ? Container()
+                                : Container(
+                                    color: Colors.green,
+                                    height: 125,
+                                    child: ListView.builder(
+                                      itemBuilder: (context, index) {
+                                        return Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: <Widget>[
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                  top: 8.0),
+                                              child: Text(previousYears[index]
+                                                  .toString()),
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                  top: 2.0),
+                                              child: Text(previousYield[index]
+                                                  .toString()),
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                  top: 2.0),
+                                              child: Text(previousRain[index]
+                                                  .toString()),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                      itemCount: previousYears.length ?? 0,
+                                    ),
+                                  )
                           ],
-                        )),
-                      )
-                    : Container(), */
+                        ))
+                    : Container(),
                 showGraph
                     ? Divider(
                         color: Colors.greenAccent,
@@ -539,6 +660,7 @@ class _YeildPredictorState extends State<YeildPredictor> {
                     ? Padding(
                         padding: const EdgeInsets.only(top: 8.0),
                         child: Container(
+                          padding: EdgeInsets.only(top: 20),
                           decoration:
                               BoxDecoration(border: Border.all(width: 1)),
                           child: graphHasData
